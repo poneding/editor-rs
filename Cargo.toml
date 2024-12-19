@@ -1,0 +1,8 @@
+[package]
+name = "rustext"
+version = "0.1.0"
+edition = "2021"
+authors = ["dp <poneding@gmail.com>"]
+
+[dependencies]
+crossterm = "0.28.1"
