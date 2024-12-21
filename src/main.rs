@@ -1,17 +1,9 @@
+#![warn(clippy::all, clippy::pedantic, clippy::print_stdout)]
+use editor::Editor;
+
 mod editor;
+mod terminal;
 
 fn main() {
-    let editor = editor::Editor::default();
-    editor.run();
-}
-
-pub struct KeyEvent {
-    pub code: KeyCode,
-    // pub modifiers: KeyModifiers,
-}
-
-pub enum KeyCode {
-    Backspace,
-    Enter,
-    Char(char),
+    Editor::default().run();
 }

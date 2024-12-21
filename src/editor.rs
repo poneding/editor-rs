@@ -1,34 +1,84 @@
+use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::io::Error;
-use std::process::exit;
 
-use crossterm::event::{read, Event, KeyCode};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crate::terminal::{Position, Size, Terminal};
 
-pub struct Editor {}
+pub struct Editor {
+    should_quit: bool,
+}
 
 impl Editor {
-    pub fn default() -> Self {
-        Editor {}
+    pub const fn default() -> Self {
+        Self { should_quit: false }
     }
 
-    pub fn run(&self) {
-        if let Err(err) = self.repl() {
-            eprintln!("{}", err);
-            exit(1);
-        }
-        println!("bye~\r\n");
+    pub fn run(&mut self) {
+        Terminal::initialize().unwrap();
+        let result = self.repl();
+        Terminal::terminate().unwrap();
+        result.unwrap(); // why after terminate? because we need to disable raw mode before exiting
     }
 
-    pub fn repl(&self) -> Result<(), Error> {
-        enable_raw_mode()?;
+    #[allow(unused)]
+    pub fn repl(&mut self) -> Result<(), Error> {
         loop {
-            if let Event::Key(event) = read()? {
-                if let KeyCode::Char('q') = event.code {
-                    break;
+            self.refresh_screen()?;
+            if self.should_quit {
+                break;
+            }
+
+            let event = read()?;
+            self.evaluate_event(&event);
+        }
+        Ok(())
+    }
+
+    fn evaluate_event(&mut self, event: &Event) {
+        if let Event::Key(KeyEvent {
+            code, modifiers, ..
+        }) = event
+        {
+            // println!("{:?} {:?}", code, modifiers == &KeyModifiers::CONTROL);
+            match code {
+                // KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
+                //     self.should_quit = true
+                // }
+                KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
+                    // ctrl+q
+                    self.should_quit = true
                 }
+                // KeyCode::Char(c) => print!("{}", c),
+                _ => (),
             }
         }
-        disable_raw_mode()?;
+    }
+
+    fn refresh_screen(&self) -> Result<(), Error> {
+        Terminal::hide_cursor()?;
+        if self.should_quit {
+            Terminal::clear_screen()?;
+            Terminal::print("bye.")?;
+        } else {
+            Self::draw_rows()?;
+            Terminal::move_cursor_to(Position { x: 0, y: 0 })?; // Move the cursor to the top-left corner.
+        }
+
+        Terminal::show_cursor()?;
+        Terminal::execute()?;
+
+        Ok(())
+    }
+
+    fn draw_rows() -> Result<(), Error> {
+        let Size { height, .. } = Terminal::size()?;
+        for cur_row in 0..height {
+            Terminal::clear_line()?;
+            Terminal::print("~")?;
+            if cur_row < height - 1 {
+                Terminal::print("\r\n")?;
+            }
+        }
+
         Ok(())
     }
 }
