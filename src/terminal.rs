@@ -1,22 +1,27 @@
-use std::io::{stdout, Error, Write};
+use std::{
+    fmt::Display,
+    io::{stdout, Error, Write},
+};
 
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     execute, queue,
     style::Print,
     terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType},
+    Command,
 };
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub(crate) struct Size {
-    pub(crate) height: u16,
-    pub(crate) width: u16,
+    pub(crate) height: usize,
+    pub(crate) width: usize,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct Position {
-    pub(crate) x: u16,
-    pub(crate) y: u16,
+    pub(crate) x: usize,
+    pub(crate) y: usize,
 }
 
 pub(crate) struct Terminal {}
@@ -39,42 +44,53 @@ impl Terminal {
 
     /// Clear the screen.
     pub(crate) fn clear_screen() -> Result<(), Error> {
-        // print!(
-        // "{}",
-        // crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
-        // );
-        execute!(stdout(), Clear(ClearType::All))
+        Self::queue_command(Clear(ClearType::All))
     }
 
     /// Clear the current line.
     pub(crate) fn clear_line() -> Result<(), Error> {
-        execute!(stdout(), Clear(ClearType::CurrentLine))
+        Self::queue_command(Clear(ClearType::CurrentLine))
     }
 
     /// Move the cursor to the specified position.
     pub(crate) fn move_cursor_to(pos: Position) -> Result<(), Error> {
-        execute!(stdout(), MoveTo(pos.x, pos.y))
+        #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
+        Self::queue_command(MoveTo(pos.x as u16, pos.y as u16))
     }
 
     /// Get the size of the terminal.
     pub(crate) fn size() -> Result<Size, Error> {
         let (width, height) = size()?;
+
+        #[allow(clippy::as_conversion)]
+        let height = height as usize;
+        #[allow(clippy::as_conversions)]
+        let width = width as usize;
         Ok(Size { width, height })
     }
 
+    /// Hide the cursor.
     pub(crate) fn hide_cursor() -> Result<(), Error> {
-        queue!(stdout(), Hide)
+        Self::queue_command(Hide)
     }
 
+    /// Show the cursor.
     pub(crate) fn show_cursor() -> Result<(), Error> {
-        queue!(stdout(), Show)
+        Self::queue_command(Show)
     }
 
-    pub(crate) fn print(s: &str) -> Result<(), Error> {
-        queue!(stdout(), Print(s))
+    /// Print the specified value.
+    pub(crate) fn print<T: Display>(t: T) -> Result<(), Error> {
+        Self::queue_command(Print(t))
     }
 
+    /// Execute the queued commands.
     pub(crate) fn execute() -> Result<(), Error> {
         stdout().flush()
+    }
+
+    /// Queue the specified command.
+    fn queue_command<T: Command>(command: T) -> Result<(), Error> {
+        queue!(stdout(), command)
     }
 }
