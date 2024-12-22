@@ -15,7 +15,7 @@ struct Location {
 #[derive(Default)]
 pub struct Editor {
     should_quit: bool,
-    loation: Location,
+    location: Location,
 }
 
 impl Editor {
@@ -35,7 +35,7 @@ impl Editor {
             }
 
             let event = read()?;
-            self.evaluate_event(&event);
+            self.evaluate_event(&event)?;
         }
         Ok(())
     }
@@ -65,7 +65,7 @@ impl Editor {
                 | KeyCode::PageDown
                 | KeyCode::Home
                 | KeyCode::End => {
-                    self.move_point(*code);
+                    self.move_point(*code)?;
                 }
                 _ => (),
             }
@@ -74,20 +74,41 @@ impl Editor {
     }
 
     fn move_point(&mut self, key_code: KeyCode) -> Result<(), Error> {
-        let Location { mut x, mut y } = self.loation;
+        let Location { mut x, mut y } = self.location;
+        let Size { width, height } = Terminal::size()?;
+        match key_code {
+            KeyCode::Up => y = y.saturating_sub(1),
+            KeyCode::Down => y = core::cmp::min(height.saturating_sub(1), y.saturating_sub(1)),
+            KeyCode::Left => x = x.saturating_sub(1),
+            KeyCode::Right => x = core::cmp::min(width.saturating_sub(1), x.saturating_sub(1)),
+            KeyCode::PageUp => y = 0,
+            KeyCode::PageDown => y = height.saturating_sub(1),
+            KeyCode::Home => x = 0,
+            KeyCode::End => x = width.saturating_sub(1),
+            _ => (),
+        }
+        self.location = Location { x, y };
+        Ok(())
     }
 
     fn refresh_screen(&self) -> Result<(), Error> {
-        Terminal::hide_cursor()?;
+        // Terminal::hide_cursor()?;
+        Terminal::hide_caret()?;
+        Terminal::move_caret_to(Position::default())?;
         if self.should_quit {
             Terminal::clear_screen()?;
-            Terminal::print("done.\r\n")?;
+            Terminal::print("Goodbye.\r\n")?;
         } else {
             Self::draw_rows()?;
-            Terminal::move_cursor_to(Position { x: 0, y: 0 })?; // Move the cursor to the top-left corner.
+            // Terminal::move_cursor_to(Position { x: 0, y: 0 })?; // Move the cursor to the top-left corner.
+            Terminal::move_caret_to(Position {
+                col: self.location.x,
+                row: self.location.y,
+            })?;
         }
 
-        Terminal::show_cursor()?;
+        // Terminal::show_cursor()?;
+        Terminal::show_caret()?;
         Terminal::execute()?;
 
         Ok(())

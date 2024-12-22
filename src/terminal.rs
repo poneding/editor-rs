@@ -5,7 +5,7 @@ use std::{
 
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
-    execute, queue,
+    queue,
     style::Print,
     terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType},
     Command,
@@ -18,10 +18,10 @@ pub(crate) struct Size {
     pub(crate) width: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct Position {
-    pub(crate) x: usize,
-    pub(crate) y: usize,
+    pub(crate) col: usize,
+    pub(crate) row: usize,
 }
 
 pub(crate) struct Terminal {}
@@ -31,7 +31,7 @@ impl Terminal {
     pub(crate) fn initialize() -> Result<(), Error> {
         enable_raw_mode()?; // Enable raw mode.
         Self::clear_screen()?;
-        Self::move_cursor_to(Position { x: 0, y: 0 })?;
+        // Self::move_cursor_to(Position { col: 0, row: 0 })?;
         Self::execute()?; // Hide the cursor.
         Ok(())
     }
@@ -52,10 +52,10 @@ impl Terminal {
         Self::queue_command(Clear(ClearType::CurrentLine))
     }
 
-    /// Move the cursor to the specified position.
-    pub(crate) fn move_cursor_to(pos: Position) -> Result<(), Error> {
+    /// Move the caret to the specified position.
+    pub(crate) fn move_caret_to(pos: Position) -> Result<(), Error> {
         #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
-        Self::queue_command(MoveTo(pos.x as u16, pos.y as u16))
+        Self::queue_command(MoveTo(pos.col as u16, pos.row as u16))
     }
 
     /// Get the size of the terminal.
@@ -69,13 +69,13 @@ impl Terminal {
         Ok(Size { width, height })
     }
 
-    /// Hide the cursor.
-    pub(crate) fn hide_cursor() -> Result<(), Error> {
+    /// Hide the caret.
+    pub(crate) fn hide_caret() -> Result<(), Error> {
         Self::queue_command(Hide)
     }
 
-    /// Show the cursor.
-    pub(crate) fn show_cursor() -> Result<(), Error> {
+    /// Show the caret.
+    pub(crate) fn show_caret() -> Result<(), Error> {
         Self::queue_command(Show)
     }
 
