@@ -60,13 +60,13 @@ impl Terminal {
 
     /// Get the size of the terminal.
     pub(crate) fn size() -> Result<Size, Error> {
-        let (width, height) = size()?;
+        let (height, width) = size()?;
 
         #[allow(clippy::as_conversion)]
         let height = height as usize;
         #[allow(clippy::as_conversions)]
         let width = width as usize;
-        Ok(Size { width, height })
+        Ok(Size { height, width })
     }
 
     /// Hide the caret.
