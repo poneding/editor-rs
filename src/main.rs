@@ -6,10 +6,8 @@
     clippy::as_conversions,
     clippy::integer_division
 )]
-use editor::Editor;
-
 mod editor;
-mod terminal;
+use editor::Editor;
 
 fn main() {
     Editor::default().run();

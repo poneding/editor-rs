@@ -1,7 +1,8 @@
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::io::Error;
 
-use crate::terminal::{Position, Size, Terminal};
+mod terminal;
+use terminal::{Position, Size, Terminal};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -48,13 +49,8 @@ impl Editor {
             ..
         }) = event
         {
-            // println!("{:?} {:?}", code, modifiers == &KeyModifiers::CONTROL);
             match code {
-                // KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
-                //     self.should_quit = true
-                // }
                 KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
-                    // ctrl+q
                     self.should_quit = true
                 }
                 KeyCode::Up
