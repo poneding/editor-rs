@@ -1,111 +1,110 @@
-use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::io::Error;
+use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
+use editorcommand::EditorCommand;
+use std::{
+    env::args,
+    io::Error,
+    panic::{set_hook, take_hook},
+};
+
+mod view;
 use view::View;
+
+mod editorcommand;
 
 mod terminal;
 use terminal::{Position, Size, Terminal};
-mod view;
-
-#[derive(Clone, Copy, Default)]
-struct Location {
-    x: usize,
-    y: usize,
-}
 
 #[derive(Default)]
 pub struct Editor {
     should_quit: bool,
-    location: Location,
+    view: View,
 }
 
 impl Editor {
-    pub fn run(&mut self) {
-        Terminal::initialize().unwrap();
-        let result = self.repl();
-        Terminal::terminate().unwrap();
-        result.unwrap(); // why after terminate? because we need to disable raw mode before exiting
+    pub fn new() -> Result<Self, Error> {
+        let cur_hook = take_hook();
+        set_hook(Box::new(move |panic_info| {
+            let _ = Terminal::terminate();
+            cur_hook(panic_info);
+        }));
+
+        Terminal::initialize()?;
+        let mut view = View::default();
+        let args: Vec<String> = args().collect();
+        if let Some(file) = args.get(1) {
+            view.load(file);
+        }
+
+        Ok(Self {
+            should_quit: false,
+            view,
+        })
     }
 
-    #[allow(unused)]
-    pub fn repl(&mut self) -> Result<(), Error> {
+    pub fn run(&mut self) {
         loop {
-            self.refresh_screen()?;
+            self.refresh_screen();
             if self.should_quit {
                 break;
             }
 
-            let event = read()?;
-            self.evaluate_event(&event)?;
-        }
-        Ok(())
-    }
-
-    fn evaluate_event(&mut self, event: &Event) -> Result<(), Error> {
-        if let Event::Key(KeyEvent {
-            code,
-            modifiers,
-            kind: KeyEventKind::Press,
-            ..
-        }) = event
-        {
-            match code {
-                KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
-                    self.should_quit = true
+            match read() {
+                Ok(event) => self.evaluate_event(event),
+                Err(err) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        panic!("failed to read event: {err:?}");
+                    }
                 }
-                KeyCode::Up
-                | KeyCode::Down
-                | KeyCode::Left
-                | KeyCode::Right
-                | KeyCode::PageUp
-                | KeyCode::PageDown
-                | KeyCode::Home
-                | KeyCode::End => {
-                    self.move_point(*code)?;
-                }
-                _ => (),
             }
         }
-        Ok(())
     }
 
-    fn move_point(&mut self, key_code: KeyCode) -> Result<(), Error> {
-        let Location { mut x, mut y } = self.location;
-        let Size { height, width } = Terminal::size()?;
-        match key_code {
-            KeyCode::Up => y = y.saturating_sub(1),
-            KeyCode::Down => y = core::cmp::min(height.saturating_sub(1), y.saturating_add(1)),
-            KeyCode::Left => x = x.saturating_sub(1),
-            KeyCode::Right => x = core::cmp::min(width.saturating_sub(1), x.saturating_add(1)),
-            KeyCode::PageUp => y = 0,
-            KeyCode::PageDown => y = height.saturating_sub(1),
-            KeyCode::Home => x = 0,
-            KeyCode::End => x = width.saturating_sub(1),
-            _ => (),
-        }
-        self.location = Location { x, y };
-        Ok(())
-    }
-
-    fn refresh_screen(&self) -> Result<(), Error> {
-        // Terminal::hide_cursor()?;
-        Terminal::hide_caret()?;
-        Terminal::move_caret_to(Position::default())?;
-        if self.should_quit {
-            Terminal::clear_screen()?;
-            Terminal::print("Goodbye.\r\n")?;
+    #[allow(clippy::needless_pass_by_value)]
+    fn evaluate_event(&mut self, event: Event) {
+        let should_process = match &event {
+            Event::Key(KeyEvent { kind, .. }) => kind == &KeyEventKind::Press,
+            Event::Resize(_, _) => true,
+            _ => false,
+        };
+        if should_process {
+            match EditorCommand::try_from(event) {
+                Ok(command) => {
+                    if matches!(command, EditorCommand::Quit) {
+                        self.should_quit = true;
+                    } else {
+                        self.view.handle_command(command);
+                    }
+                }
+                Err(err) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        panic!("Could not handle command: {err}");
+                    }
+                }
+            }
         } else {
-            View::render()?;
-            // Terminal::move_cursor_to(Position { x: 0, y: 0 })?; // Move the cursor to the top-left corner.
-            Terminal::move_caret_to(Position {
-                col: self.location.x,
-                row: self.location.y,
-            })?;
+            #[cfg(debug_assertions)]
+            {
+                panic!("Received and discarded unsupported or non-press event.");
+            }
         }
+    }
 
-        // Terminal::show_cursor()?;
-        Terminal::show_caret()?;
-        Terminal::execute()?;
+    fn refresh_screen(&mut self) {
+        let _ = Terminal::hide_caret();
+        self.view.render();
+        let _ = Terminal::move_caret_to(self.view.get_position());
+        let _ = Terminal::show_caret();
+        let _ = Terminal::execute();
+    }
+}
 
-        Ok(())
+impl Drop for Editor {
+    fn drop(&mut self) {
+        let _ = Terminal::terminate();
+        if self.should_quit {
+            let _ = Terminal::print("Goodbye.\r\n");
+        }
     }
 }
